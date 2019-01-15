@@ -10,6 +10,7 @@ function Lexer() {
 
 // 词法分析器核心
 Lexer.rules = {
+    newline: /^\n+/,
     heading: /^ *(#{1,6}) +([^\n]+?)(?:\n+|$)/
 };
 
@@ -22,7 +23,10 @@ Lexer.lex = function(src) {
 // 将字符串转换为单词（Token）序列
 Lexer.prototype.lex = function(src) {
     while(src) {
-        if(cap = Lexer.rules.heading.exec(src)) {
+        if(cap = Lexer.rules.newline.exec(src)) {
+            src = src.substring(cap[0].length);
+            continue;
+        } else if(cap = Lexer.rules.heading.exec(src)) {
             src = src.substring(cap[0].length);
             this.tokens.push({
                 type: 'heading',
@@ -30,7 +34,7 @@ Lexer.prototype.lex = function(src) {
                 text: cap[2]
             });
             continue;
-        }else {
+        } else {
             src = '';
             continue;
         }
