@@ -1,0 +1,14 @@
+<html>
+<head>
+    <script src="./md_parser.js"></script>
+</head>
+<body>
+    <textarea id="mdtext" ></textarea>
+    <div id="content"></div>
+    <script>
+        document.getElementById('mdtext').onkeyup = function() {
+            document.getElementById('content').innerHTML = md(this.value)
+        }
+    </script>
+</body>
+</html>
