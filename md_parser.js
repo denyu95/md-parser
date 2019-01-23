@@ -168,7 +168,7 @@ Parser.prototype.parse = function(tokens) {
             case 'orderedlist': {
                 console.log(token.text)
                 forest = token.text;
-                this.out = '';
+                let liout = '';
                 for(let j = 0; j < forest.length; j++) {
                     let listr = '';
                     items = forest[j];
@@ -187,9 +187,9 @@ Parser.prototype.parse = function(tokens) {
                             listr = '<li>' + items[i].text +'</li>' + listr;
                         } 
                     }
-                    this.out += listr;
+                    liout += listr;
                 }
-                this.out ='<ol>' + this.out + '</ol>';
+                this.out +='<ol>' + liout + '</ol>';
                 break;
             }
             case 'paragraph': {

@@ -3,11 +3,25 @@
     <script src="./md_parser.js"></script>
 </head>
 <body>
-    <textarea id="mdtext" ></textarea>
-    <div id="content"></div>
+    <textarea id="mdtext" style="float:left;resize:none;height: 300px;width: 300px"></textarea>
+    <div id="content" style="float:left;margin-left: 50px"></div>
     <script>
         document.getElementById('mdtext').onkeyup = function() {
             document.getElementById('content').innerHTML = md(this.value)
+        }
+        document.getElementById('mdtext').onkeydown = function(e) {
+            if (e.keyCode == 9) {
+                e.preventDefault();
+                var indent = '    ';
+                var start = this.selectionStart;
+                var end = this.selectionEnd;
+                var selected = window.getSelection().toString();
+                selected = indent + selected.replace(/\n/g, '\n' + indent);
+                this.value = this.value.substring(0, start) + selected
+                        + this.value.substring(end);
+                this.setSelectionRange(start + indent.length, start
+                        + selected.length);
+            }
         }
     </script>
 </body>
