@@ -66,66 +66,20 @@ Lexer.prototype.lex = function(src) {
             });
             continue;
         } else if(cap = Lexer.rules.orderedlist.exec(src)) {
-            let forest = []
-            let index = 0;
+            // console.log('词法解析开始：')
+            // console.log(new Date().getTime());
             src = src.substring(cap[0].length);
-            items = cap[0].match(Lexer.rules.items);
-            for(let i = 0; i < items.length; i++) {
-                let tree = [];
-                item = items[i];
-                texts = Lexer.rules.text.exec(item);
-                text = item.substring(texts[0].length);
-                let parentItem = new Item();
-                parentItem.index = index;
-                parentItem.text = texts[1];
-                parentItem.parent = -1;
-                parentItem.floor = 1;
-                tree.push(parentItem);
-                index++;
-                secondItems = text.match(Lexer.rules.items);
-                if(secondItems !== null) {
-                    for(let j = 0; j < secondItems.length; j++) {
-                        secondItem = secondItems[j];
-                        secondTexts = Lexer.rules.text.exec(secondItem);
-                        secondText = secondItem.substring(secondTexts[0].length);
-                        let childItem = new Item();
-                        childItem.index = index;
-                        childItem.text = secondTexts[1];
-                        childItem.parent = parentItem.index;
-                        childItem.floor = 2;
-                        tree.push(childItem);
-                        index++;
-                        thirdItems = secondText.match(Lexer.rules.items);
-                        if(thirdItems !== null) {
-                            for(let z = 0; z < thirdItems.length; z++) {
-                                thirdItem = thirdItems[z];
-                                thirdTexts = Lexer.rules.text.exec(thirdItem);
-                                let grandsonItem = new Item();
-                                grandsonItem.index = index;
-                                grandsonItem.text = thirdTexts[1];
-                                grandsonItem.parent = childItem.index;
-                                grandsonItem.floor = 3;
-                                if (z === thirdItems.length-1) {
-                                    grandsonItem.last = true;
-                                }
-                                tree.push(grandsonItem);
-                                index++;
-                            }
-                            childItem.flag = true;
-                        } else {
-                            childItem.flag = false;
-                        }
-                    }
-                    parentItem.flag = true;
-                } else {
-                    parentItem.flag = false;
-                }
-                forest.push(tree)
-            }
+            var list=[];
+            var dataNode = new DataNode();
+            dataNode.element = 'root';
+            list.push(dataNode)
+            mdlist(cap[0], list, dataNode);
             this.tokens.push({
                 type: 'orderedlist',
-                text: forest
-            })
+                struct: list
+            });
+            // console.log('词法解析结束：')
+            // console.log(new Date().getTime());
             continue;
         } else if(cap = Lexer.rules.paragraph.exec(src)) {
             src = src.substring(cap[0].length);
@@ -166,30 +120,12 @@ Parser.prototype.parse = function(tokens) {
                 break;
             }
             case 'orderedlist': {
-                console.log(token.text)
-                forest = token.text;
-                let liout = '';
-                for(let j = 0; j < forest.length; j++) {
-                    let listr = '';
-                    items = forest[j];
-                    for(let i = items.length-1; i >= 0; i--) {
-                        if (items[i].floor === 1 && i === items.length-1) {
-                            listr = '<li>' + items[i].text + '</li>';
-                        } else if (items[i].floor === 2 && i === items.length-1) {
-                            listr = '<li>' + items[i].text + '</li>' + '</ol>' + '</li>';
-                        } else if (items[i].floor === 3 && i === items.length-1) {
-                            listr = '<li>' + items[i].text +'</li>' + '</ol>' + '</li>' + '</ol>' + '</li>';
-                        } else if (items[i].flag === true) {
-                            listr = '<li>' +  items[i].text + '<ol>' + listr;
-                        } else if (items[i].last == true) {
-                            listr = '<li>' + items[i].text +'</li>' + '</ol>' + listr;
-                        } else {
-                            listr = '<li>' + items[i].text +'</li>' + listr;
-                        } 
-                    }
-                    liout += listr;
-                }
-                this.out +='<ol>' + liout + '</ol>';
+                // console.log('语法解析开始：')
+                // console.log(new Date().getTime());
+                list = token.struct;
+                this.out += readTreeStruct(list, list[0]);
+                // console.log('语法解析结束：')
+                // console.log(new Date().getTime());
                 break;
             }
             case 'paragraph': {
@@ -202,3 +138,65 @@ Parser.prototype.parse = function(tokens) {
 }
 
 function Item(){}
+
+function ChildNode() {}
+
+function DataNode() {}
+
+function readTreeStruct(list, node) {
+    out = ''
+    var childnode = node.firstchild;
+    if(childnode === null) {
+        return out;
+    }
+    out += '<ol>';
+    while(true) {
+        datanode = list[childnode.index];
+        element = datanode.element;
+        out += '<li>' + element;
+        if(datanode.firstchild != null){
+            out += readTreeStruct(list, datanode) + '</li>'
+        } else {
+            out += '</li>';
+        }
+        if(childnode.next == null) {
+            out += '</ol>';
+            return out;
+        }
+        childnode = childnode.next;
+    }
+}
+
+function mdlist(src, list, beforeNode) {
+    items = src.match(Lexer.rules.items);
+    if(items !== null) {
+        var index = 0;
+        var beforeChildNode;
+        items.forEach(item => {
+            result = Lexer.rules.text.exec(item);
+            item = item.substring(result[0].length);
+            text = result[1];
+            var dataNode = new DataNode();
+            dataNode.element = text;
+            if(item === "") {
+                dataNode.firstchild = null;
+            }
+            list.push(dataNode);
+            if (index === 0) {
+                var childNode = new ChildNode();
+                childNode.index = list.length - 1;
+                beforeNode.firstchild = childNode;
+                beforeChildNode = childNode;
+            } else {
+                var childNode = new ChildNode();
+                childNode.index = list.length - 1;
+                beforeChildNode.next = childNode;
+                beforeChildNode = childNode;
+            }
+            index++;
+            mdlist(item, list, dataNode);
+        });
+        beforeChildNode.next = null;
+    } 
+    return;
+}
