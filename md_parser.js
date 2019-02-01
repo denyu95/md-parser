@@ -13,15 +13,16 @@ Lexer.rules = {
     newline: /^\n+/,
     heading: /^ *(#{1,6}) +([^\n]+?)(?:\n+|$)/,
     codeblock: /^ *`{3} *\n{1}([\S\s]*?)\n{0,1}`{3}/,
-    orderedlist: /^ *[\d]+\. +[^\n]*(?:\n *[\d]+\. +[^\n]*)*/,
-    items: /^( *)\d+\. +[^\n]*(\n(?!\1\d+\. +)[^\n]*)*/gm,
+    orderlist: /^ *[\d]+\. +[^\n]*(?:\n *[\d]+\. +[^\n]*)*/,
+    item: /^( *)\d+\. +[^\n]*(\n(?!\1\d+\. +)[^\n]*)*/gm,
     text: /^ *\d+\. +([^\n]*)/,
-    paragraph: /^[^\n]+(?:\n(?!heading|codeblock)[^\n]+)*/
+    paragraph: /^[^\n]+(?:\n(?!heading|codeblock|orderlist)[^\n]+)*/
 };
 
 Lexer.rules.paragraph = edit(Lexer.rules.paragraph)
 .replace('heading',' *#{1,6} +[^\\n]+')
 .replace('codeblock',' *`{3} *\\n{1}[\\S\\s]*?\\n`{3}')
+.replace('orderlist',' *[\\d]+\\. +')
 .getRegex();
 
 function edit(regex) {
@@ -47,45 +48,43 @@ Lexer.lex = function(src) {
 // 将字符串转换为单词（Token）序列
 Lexer.prototype.lex = function(src) {
     while(src) {
-        if(cap = Lexer.rules.newline.exec(src)) {
-            src = src.substring(cap[0].length);
+        if(result = Lexer.rules.newline.exec(src)) {
+            src = src.substring(result[0].length);
             continue;
-        } else if(cap = Lexer.rules.heading.exec(src)) {
-            src = src.substring(cap[0].length);
+        } else if(result = Lexer.rules.heading.exec(src)) {
+            src = src.substring(result[0].length);
             this.tokens.push({
                 type: 'heading',
-                level: cap[1].length,
-                text: cap[2]
+                level: result[1].length,
+                text: result[2]
             });
             continue;
-        } else if(cap = Lexer.rules.codeblock.exec(src)) {
-            src = src.substring(cap[0].length);
+        } else if(result = Lexer.rules.codeblock.exec(src)) {
+            src = src.substring(result[0].length);
             this.tokens.push({
                 type: 'codeblock',
-                text: cap[1]
+                text: result[1]
             });
             continue;
-        } else if(cap = Lexer.rules.orderedlist.exec(src)) {
-            // console.log('词法解析开始：')
-            // console.log(new Date().getTime());
-            src = src.substring(cap[0].length);
-            var list=[];
-            var dataNode = new DataNode();
-            dataNode.element = 'root';
-            list.push(dataNode)
-            mdlist(cap[0], list, dataNode);
+        } else if(result = Lexer.rules.orderlist.exec(src)) {
+            src = src.substring(result[0].length);
+            // 初始化根节点
+            var treeNodes = [];
+            var treeNode = new TreeNode();
+            treeNode.text = 'root';
+            treeNodes.push(treeNode);
+            
+            analyseOrderlist(result[0], treeNodes, treeNode);
             this.tokens.push({
-                type: 'orderedlist',
-                struct: list
+                type: 'orderlist',
+                nodes: treeNodes
             });
-            // console.log('词法解析结束：')
-            // console.log(new Date().getTime());
             continue;
-        } else if(cap = Lexer.rules.paragraph.exec(src)) {
-            src = src.substring(cap[0].length);
+        } else if(result = Lexer.rules.paragraph.exec(src)) {
+            src = src.substring(result[0].length);
             this.tokens.push({
                 type: 'paragraph',
-                text: cap[0]
+                text: result[0]
             })
             continue;
         } else {
@@ -119,13 +118,9 @@ Parser.prototype.parse = function(tokens) {
                 this.out += '<pre><code>' + token.text + '</code></pre>\n';
                 break;
             }
-            case 'orderedlist': {
-                // console.log('语法解析开始：')
-                // console.log(new Date().getTime());
-                list = token.struct;
-                this.out += readTreeStruct(list, list[0]);
-                // console.log('语法解析结束：')
-                // console.log(new Date().getTime());
+            case 'orderlist': {
+                nodes = token.nodes;
+                this.out += parseOrderlist(nodes, nodes[0]);
                 break;
             }
             case 'paragraph': {
@@ -137,66 +132,65 @@ Parser.prototype.parse = function(tokens) {
     return this.out;
 }
 
-function Item(){}
-
 function ChildNode() {}
 
-function DataNode() {}
+function TreeNode() {}
 
-function readTreeStruct(list, node) {
-    out = ''
-    var childnode = node.firstchild;
-    if(childnode === null) {
+// 解析有序列表为html代码
+function parseOrderlist(nodes, node) {
+    let out = '';
+    let firstChild = node.firstChild;
+    if(firstChild === null) {
         return out;
     }
     out += '<ol>';
     while(true) {
-        datanode = list[childnode.index];
-        element = datanode.element;
-        out += '<li>' + element;
-        if(datanode.firstchild != null){
-            out += readTreeStruct(list, datanode) + '</li>'
+        let node = nodes[firstChild.index];
+        let text = node.element;
+        out += '<li>' + text;
+        if(node.firstChild != null){
+            out += parseOrderlist(nodes, node) + '</li>'
         } else {
             out += '</li>';
         }
-        if(childnode.next == null) {
+        if(firstChild.next == null) {
             out += '</ol>';
             return out;
         }
-        childnode = childnode.next;
+        firstChild = firstChild.next;
     }
 }
 
-function mdlist(src, list, beforeNode) {
-    items = src.match(Lexer.rules.items);
-    if(items !== null) {
-        var index = 0;
-        var beforeChildNode;
-        items.forEach(item => {
-            result = Lexer.rules.text.exec(item);
+// 分析字符串中的有序列表并按照树形结构的孩子表示法存储
+function analyseOrderlist(src, treeNodes, parentNode) {
+    let items = src.match(Lexer.rules.item);
+    if (items !== null) {
+        let lastChildNode;
+        for (let index = 0; index < items.length; index++) {
+            let item = items[index];
+            let result = Lexer.rules.text.exec(item);
             item = item.substring(result[0].length);
-            text = result[1];
-            var dataNode = new DataNode();
-            dataNode.element = text;
-            if(item === "") {
-                dataNode.firstchild = null;
-            }
-            list.push(dataNode);
-            if (index === 0) {
-                var childNode = new ChildNode();
-                childNode.index = list.length - 1;
-                beforeNode.firstchild = childNode;
-                beforeChildNode = childNode;
+            let text = result[1];
+            let treeNode = new TreeNode();
+            treeNode.element = text;
+            treeNodes.push(treeNode);
+
+            let childNode = new ChildNode();
+            childNode.index = treeNodes.length - 1;
+            if (index === 0) { 
+                parentNode.firstChild = childNode;
             } else {
-                var childNode = new ChildNode();
-                childNode.index = list.length - 1;
-                beforeChildNode.next = childNode;
-                beforeChildNode = childNode;
+                lastChildNode.next = childNode;
             }
-            index++;
-            mdlist(item, list, dataNode);
-        });
-        beforeChildNode.next = null;
+            lastChildNode = childNode;
+            if (item === '') {
+                treeNode.firstChild = null;
+                continue;
+            } else {
+                analyseOrderlist(item, treeNodes, treeNode);
+            }
+        }
+        lastChildNode.next = null;
     } 
     return;
 }
