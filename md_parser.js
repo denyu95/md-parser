@@ -14,15 +14,19 @@ Lexer.rules = {
     heading: /^ *(#{1,6}) +([^\n]+?)(?:\n+|$)/,
     codeblock: /^ *`{3} *\n{1}([\S\s]*?)\n{0,1}`{3}/,
     orderlist: /^ *[\d]+\. +[^\n]*(?:\n *[\d]+\. +[^\n]*)*/,
-    item: /^( *)\d+\. +[^\n]*(\n(?!\1\d+\. +)[^\n]*)*/gm,
-    text: /^ *\d+\. +([^\n]*)/,
-    paragraph: /^[^\n]+(?:\n(?!heading|codeblock|orderlist)[^\n]+)*/
+    orderitem: /^( *)\d+\. +[^\n]*(\n(?!\1\d+\. +)[^\n]*)*/gm,
+    ordertext: /^ *\d+\. +([^\n]*)/,
+    disorderlist: /^ *(?:\+|\*|-) +[^\n]*(?:\n *(?:\+|\*|-) +[^\n]*)*/,
+    disorderitem: /^( *)(?:\+|\*|-) +[^\n]*(\n(?!\1(\+|\*|-) +)[^\n]*)*/gm,
+    disordertext: /^ *(?:\+|\*|-) +([^\n]*)/,
+    paragraph: /^[^\n]+(?:\n(?!heading|codeblock|orderlist|disorderlist)[^\n]+)*/
 };
 
 Lexer.rules.paragraph = edit(Lexer.rules.paragraph)
 .replace('heading',' *#{1,6} +[^\\n]+')
 .replace('codeblock',' *`{3} *\\n{1}[\\S\\s]*?\\n`{3}')
 .replace('orderlist',' *[\\d]+\\. +')
+.replace('disorderlist',' *(\\+|\\*|-) +')
 .getRegex();
 
 function edit(regex) {
@@ -69,14 +73,28 @@ Lexer.prototype.lex = function(src) {
         } else if(result = Lexer.rules.orderlist.exec(src)) {
             src = src.substring(result[0].length);
             // 初始化根节点
-            var treeNodes = [];
-            var treeNode = new TreeNode();
+            let treeNodes = [];
+            let treeNode = new TreeNode();
             treeNode.text = 'root';
             treeNodes.push(treeNode);
             
             analyseOrderlist(result[0], treeNodes, treeNode);
             this.tokens.push({
                 type: 'orderlist',
+                nodes: treeNodes
+            });
+            continue;
+        } else if(result = Lexer.rules.disorderlist.exec(src)) {
+            src = src.substring(result[0].length);
+            // 初始化根节点
+            let treeNodes = [];
+            let treeNode = new TreeNode();
+            treeNode.text = 'root';
+            treeNodes.push(treeNode);
+            
+            analyseDisorderlist(result[0], treeNodes, treeNode);
+            this.tokens.push({
+                type: 'disorderlist',
                 nodes: treeNodes
             });
             continue;
@@ -123,6 +141,11 @@ Parser.prototype.parse = function(tokens) {
                 this.out += parseOrderlist(nodes, nodes[0]);
                 break;
             }
+            case 'disorderlist': {
+                nodes = token.nodes;
+                this.out += parseDisorderlist(nodes, nodes[0]);
+                break;
+            }
             case 'paragraph': {
                 this.out += '<p>' + token.text + '</p>\n';
                 break;
@@ -161,14 +184,39 @@ function parseOrderlist(nodes, node) {
     }
 }
 
+// 解析有序列表为html代码
+function parseDisorderlist(nodes, node) {
+    let out = '';
+    let firstChild = node.firstChild;
+    if(firstChild === null) {
+        return out;
+    }
+    out += '<ul>';
+    while(true) {
+        let node = nodes[firstChild.index];
+        let text = node.element;
+        out += '<li>' + text;
+        if(node.firstChild != null){
+            out += parseDisorderlist(nodes, node) + '</li>'
+        } else {
+            out += '</li>';
+        }
+        if(firstChild.next == null) {
+            out += '</ul>';
+            return out;
+        }
+        firstChild = firstChild.next;
+    }
+}
+
 // 分析字符串中的有序列表并按照树形结构的孩子表示法存储
 function analyseOrderlist(src, treeNodes, parentNode) {
-    let items = src.match(Lexer.rules.item);
+    let items = src.match(Lexer.rules.orderitem);
     if (items !== null) {
         let lastChildNode;
         for (let index = 0; index < items.length; index++) {
             let item = items[index];
-            let result = Lexer.rules.text.exec(item);
+            let result = Lexer.rules.ordertext.exec(item);
             item = item.substring(result[0].length);
             let text = result[1];
             let treeNode = new TreeNode();
@@ -188,6 +236,40 @@ function analyseOrderlist(src, treeNodes, parentNode) {
                 continue;
             } else {
                 analyseOrderlist(item, treeNodes, treeNode);
+            }
+        }
+        lastChildNode.next = null;
+    } 
+    return;
+}
+
+// 分析字符串中的无序列表并按照树形结构的孩子表示法存储
+function analyseDisorderlist(src, treeNodes, parentNode) {
+    let items = src.match(Lexer.rules.disorderitem);
+    if (items !== null) {
+        let lastChildNode;
+        for (let index = 0; index < items.length; index++) {
+            let item = items[index];
+            let result = Lexer.rules.disordertext.exec(item);
+            item = item.substring(result[0].length);
+            let text = result[1];
+            let treeNode = new TreeNode();
+            treeNode.element = text;
+            treeNodes.push(treeNode);
+
+            let childNode = new ChildNode();
+            childNode.index = treeNodes.length - 1;
+            if (index === 0) { 
+                parentNode.firstChild = childNode;
+            } else {
+                lastChildNode.next = childNode;
+            }
+            lastChildNode = childNode;
+            if (item === '') {
+                treeNode.firstChild = null;
+                continue;
+            } else {
+                analyseDisorderlist(item, treeNodes, treeNode);
             }
         }
         lastChildNode.next = null;
