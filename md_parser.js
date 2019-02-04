@@ -19,7 +19,8 @@ Lexer.rules = {
     disorderlist: /^ *(?:\+|\*|-) +[^\n]*(?:\n *(?:\+|\*|-) +[^\n]*)*/,
     disorderitem: /^( *)(?:\+|\*|-) +[^\n]*(\n(?!\1(\+|\*|-) +)[^\n]*)*/gm,
     disordertext: /^ *(?:\+|\*|-) +([^\n]*)/,
-    paragraph: /^[^\n]+(?:\n(?!heading|codeblock|orderlist|disorderlist)[^\n]+)*/
+    horizontalrule: /^ *(\*|-|_)\1{2,}/,
+    paragraph: /^[^\n]+(?:\n(?!heading|codeblock|orderlist|disorderlist|horizontalrule)[^\n]+)*/
 };
 
 Lexer.rules.paragraph = edit(Lexer.rules.paragraph)
@@ -27,6 +28,7 @@ Lexer.rules.paragraph = edit(Lexer.rules.paragraph)
 .replace('codeblock',' *`{3} *\\n{1}[\\S\\s]*?\\n`{3}')
 .replace('orderlist',' *[\\d]+\\. +')
 .replace('disorderlist',' *(\\+|\\*|-) +')
+.replace('horizontalrule',' *(\\*|-|_)\\1{2,}')
 .getRegex();
 
 function edit(regex) {
@@ -98,6 +100,11 @@ Lexer.prototype.lex = function(src) {
                 nodes: treeNodes
             });
             continue;
+        } else if(result = Lexer.rules.horizontalrule.exec(src)) {
+            src = src.substring(result[0].length)
+            this.tokens.push({
+                type: 'horizontalrule',
+            });
         } else if(result = Lexer.rules.paragraph.exec(src)) {
             src = src.substring(result[0].length);
             this.tokens.push({
@@ -129,11 +136,11 @@ Parser.prototype.parse = function(tokens) {
     tokens.forEach(token => {
         switch(token.type) {
             case 'heading': {
-                this.out += '<h' + token.level + '>' + token.text + '</h' + token.level +'>\n';
+                this.out += '<h' + token.level + '>' + token.text + '</h' + token.level +'>';
                 break;
             }
             case 'codeblock': {
-                this.out += '<pre><code>' + token.text + '</code></pre>\n';
+                this.out += '<pre><code>' + token.text + '</code></pre>';
                 break;
             }
             case 'orderlist': {
@@ -146,8 +153,12 @@ Parser.prototype.parse = function(tokens) {
                 this.out += parseDisorderlist(nodes, nodes[0]);
                 break;
             }
+            case 'horizontalrule': {
+                this.out += '<hr>';
+                break;
+            }
             case 'paragraph': {
-                this.out += '<p>' + token.text + '</p>\n';
+                this.out += '<p>' + token.text + '</p>';
                 break;
             }
         }
