@@ -11,6 +11,7 @@ function Lexer() {
 // 词法分析器核心
 Lexer.rules = {
     newline: /^\n+/,
+    bold: /(\*|_)\1{1}[^\n]*\1{2}/g,
     heading: /^ *(#{1,6}) +([^\n]+?)(?:\n+|$)/,
     codeblock: /^ *`{3} *\n{1}([\S\s]*?)\n{0,1}`{3}/,
     orderlist: /^ *[\d]+\. +[^\n]*(?:\n *[\d]+\. +[^\n]*)*/,
@@ -53,6 +54,14 @@ Lexer.lex = function(src) {
 
 // 将字符串转换为单词（Token）序列
 Lexer.prototype.lex = function(src) {
+    let boldRuleTexts = src.match(Lexer.rules.bold);
+    if (boldRuleTexts != null) {
+        boldRuleTexts.forEach(boldRuleText => {
+            let boldText = boldRuleText.substring(2, boldRuleText.length - 2);
+            boldText = '<strong>' + boldText + '</strong>';
+            src = src.replace(boldRuleText, boldText);
+        });
+    }
     while(src) {
         if(result = Lexer.rules.newline.exec(src)) {
             src = src.substring(result[0].length);
