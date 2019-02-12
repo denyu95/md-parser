@@ -12,6 +12,7 @@ function Lexer() {
 Lexer.rules = {
     newline: /^\n+/,
     bold: /(\*{2}|_{2})[^\n]*?\1/g,
+    italic: /(\*{1}|_{1})[^\n]*?\1/g,
     heading: /^ *(#{1,6}) +([^\n]+?)(?:\n+|$)/,
     codeblock: /^ *`{3} *\n{1}([\S\s]*?)\n{0,1}`{3}/,
     orderlist: /^ *[\d]+\. +[^\n]*(?:\n *[\d]+\. +[^\n]*)*/,
@@ -60,6 +61,14 @@ Lexer.prototype.lex = function(src) {
             let boldText = boldRuleText.substring(2, boldRuleText.length - 2);
             boldText = '<strong>' + boldText + '</strong>';
             src = src.replace(boldRuleText, boldText);
+        });
+    }
+    let italicRuleTexts = src.match(Lexer.rules.italic);
+    if (italicRuleTexts != null) {
+        italicRuleTexts.forEach(italicRuleText => {
+            let italicText = italicRuleText.substring(1, italicRuleText.length - 1);
+            italicText = '<em>' + italicText + '</em>';
+            src = src.replace(italicRuleText, italicText);
         });
     }
     while(src) {
