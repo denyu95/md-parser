@@ -22,7 +22,8 @@ Lexer.rules = {
     disorderitem: /^( *)(?:\+|\*|-) +[^\n]*(\n(?!\1(\+|\*|-) +)[^\n]*)*/gm,
     disordertext: /^ *(?:\+|\*|-) +([^\n]*)/,
     horizontalrule: /^ *(\*|-|_)\1{2,}/,
-    paragraph: /^[^\n]+(?:\n(?!heading|codeblock|orderlist|disorderlist|horizontalrule)[^\n]+)*/
+    paragraph: /^[^\n]+(?:\n(?!heading|codeblock|orderlist|disorderlist|horizontalrule)[^\n]+)*/,
+    linebreaks: / {2,}$/gm
 };
 
 Lexer.rules.paragraph = edit(Lexer.rules.paragraph)
@@ -125,6 +126,7 @@ Lexer.prototype.lex = function(src) {
             });
         } else if(result = Lexer.rules.paragraph.exec(src)) {
             src = src.substring(result[0].length);
+            src = src.replace(Lexer.rules.linebreaks, '<br>');
             this.tokens.push({
                 type: 'paragraph',
                 text: result[0]
