@@ -3,8 +3,10 @@
     <script src="./md_parser.js" charset="utf-8"></script>
 </head>
 <body>
-    <textarea id="mdtext" style="float:left;resize:none;height: 300px;width: 300px"></textarea>
-    <div id="content" style="float:left;margin-left: 50px"></div>
+    <div style="height:100%; width:100%;">
+        <textarea id="mdtext" style="float:left; resize:none; height:100%; width:49.8%;"></textarea>
+        <div id="content" style="float:right; border:1px solid #33CC99; height:100%; width:48%; padding-left:2%;"></div>
+    </div>
     <script>
         document.getElementById('mdtext').onkeyup = function() {
             document.getElementById('content').innerHTML = md(this.value)
