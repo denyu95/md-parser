@@ -38,7 +38,6 @@ function edit(regex) {
     regex = regex.source;
     return {
         replace: function(name, val) {
-            val = val.source;
             regex = regex.replace(name, val);
             return this;
         },
