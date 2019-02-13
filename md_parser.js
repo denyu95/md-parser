@@ -35,10 +35,10 @@ Lexer.rules.paragraph = edit(Lexer.rules.paragraph)
 .getRegex();
 
 function edit(regex) {
-    regex = regex.source || regex;
+    regex = regex.source;
     return {
         replace: function(name, val) {
-            val = val.source || val;
+            val = val.source;
             regex = regex.replace(name, val);
             return this;
         },
@@ -126,7 +126,6 @@ Lexer.prototype.lex = function(src) {
             });
         } else if(result = Lexer.rules.paragraph.exec(src)) {
             src = src.substring(result[0].length);
-            src = src.replace(Lexer.rules.linebreaks, '<br>');
             this.tokens.push({
                 type: 'paragraph',
                 text: result[0]
@@ -178,6 +177,7 @@ Parser.prototype.parse = function(tokens) {
                 break;
             }
             case 'paragraph': {
+                token.text = token.text.replace(Lexer.rules.linebreaks, '<br>');
                 this.out += '<p>' + token.text + '</p>';
                 break;
             }
