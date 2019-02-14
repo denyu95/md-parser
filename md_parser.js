@@ -1,5 +1,6 @@
 // MD解析入口
 function md(src) {
+    // console.log(Parser.parse(Lexer.lex(src)));
     return Parser.parse(Lexer.lex(src));
 }
 
@@ -12,6 +13,8 @@ function Lexer() {
 Lexer.rules = {
     newline: /^\n+/,
     bold: /(\*{2}|_{2})[^\n]*?\1/g,
+    image: /!\[([^\n]*)\]\(([^\n]*)\)/g,
+    imagedetail: /!\[([^\n]*)\]\(([^\n]*)\)/,
     italic: /(\*{1}|_{1})[^\n]*?\1/g,
     heading: /^ *(#{1,6}) +([^\n]+?)(?:\n+|$)/,
     codeblock: /^ *`{3} *\n{1}([\S\s]*?)\n{0,1}`{3}/,
@@ -77,6 +80,7 @@ Lexer.prototype.lex = function(src) {
             continue;
         } else if(result = Lexer.rules.heading.exec(src)) {
             src = src.substring(result[0].length);
+            result[2] = parseImage(result[2]);
             this.tokens.push({
                 type: 'heading',
                 level: result[1].length,
@@ -92,6 +96,7 @@ Lexer.prototype.lex = function(src) {
             continue;
         } else if(result = Lexer.rules.orderlist.exec(src)) {
             src = src.substring(result[0].length);
+            result[0] = parseImage(result[0]);
             // 初始化根节点
             let treeNodes = [];
             let treeNode = new TreeNode();
@@ -106,6 +111,7 @@ Lexer.prototype.lex = function(src) {
             continue;
         } else if(result = Lexer.rules.disorderlist.exec(src)) {
             src = src.substring(result[0].length);
+            result[0] = parseImage(result[0]);
             // 初始化根节点
             let treeNodes = [];
             let treeNode = new TreeNode();
@@ -119,12 +125,13 @@ Lexer.prototype.lex = function(src) {
             });
             continue;
         } else if(result = Lexer.rules.horizontalrule.exec(src)) {
-            src = src.substring(result[0].length)
+            src = src.substring(result[0].length);
             this.tokens.push({
                 type: 'horizontalrule',
             });
         } else if(result = Lexer.rules.paragraph.exec(src)) {
             src = src.substring(result[0].length);
+            result[0] = parseImage(result[0]);
             this.tokens.push({
                 type: 'paragraph',
                 text: result[0]
@@ -183,6 +190,18 @@ Parser.prototype.parse = function(tokens) {
         }
     });
     return this.out;
+}
+
+function parseImage(src) {
+    if (results = src.match(Lexer.rules.image)){
+        results.forEach(imgSrc => {
+            let result = Lexer.rules.imagedetail.exec(imgSrc);
+            let altText = result[1];
+            let imgUrl = result[2];
+            src = src.replace(imgSrc, '<img src=\"'+imgUrl+'\" alt=\"'+altText+'\"/>');
+        });
+    }
+    return src;
 }
 
 function ChildNode() {}
